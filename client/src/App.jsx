@@ -19,7 +19,7 @@ function App() {
         const address = accounts[0];
 
         // Send the address to the server to get a nonce
-        const nonceResponse = await axios.get('/login');
+        const nonceResponse = await axios.get('http://localhost:3000/login');
         const nonce = nonceResponse.data.nonce;
 
         // Sign the nonce
@@ -27,7 +27,10 @@ function App() {
         const sig = await web3.eth.personal.sign(nonce, address);
 
         // Send the signed message to the server
-        const response = await axios.post('/login', { address, sig });
+        const response = await axios.post('http://localhost:3000/login', {
+          address,
+          sig,
+        });
         setToken(response.data.token);
         setAuthenticated(true);
       } else {
@@ -40,12 +43,18 @@ function App() {
 
   async function handleGetProtectedMessage() {
     try {
-      const response = await axios.get('/dashboard', { headers: { 'x-access-token': token } });
+      // Send a GET request to the server
+      const response = await axios.get('http://localhost:3000/dashboard', {
+        headers: {
+          'x-access-token': token,
+        },
+      });
       setMessage(response.data.message);
     } catch (error) {
       console.error(error);
     }
   }
+
   return (
     <div>
       <button onClick={handleSignNonce}>Sign Nonce with MetaMask</button>

@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
+const cors = require('cors');
+
+
 
 // Load environment variables from .env file
 dotenv.config();
@@ -12,8 +15,21 @@ dotenv.config();
 mongoose.set('strictQuery', true);
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+db.once('open', () => {
+  console.log('Connected to MongoDB');
+});
+
+
 // Create express app
 const app = express();
+
+// Enable CORS
+app.use(cors({
+  origin: 'http://localhost:5173',  // allow requests from this domain
+  credentials: true,  // allow the inclusion of cookies in requests
+}));
 
 // Set up Web3 provider
 const web3 = new Web3(process.env.WEB3_PROVIDER);
