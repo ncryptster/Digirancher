@@ -26,10 +26,7 @@ db.once('open', () => {
 const app = express();
 
 // Enable CORS
-app.use(cors({
-  origin: 'http://localhost:5173',  // allow requests from this domain
-  credentials: true,  // allow the inclusion of cookies in requests
-}));
+app.use(cors());
 
 // Set up Web3 provider
 const web3 = new Web3(process.env.WEB3_PROVIDER);
