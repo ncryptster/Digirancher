@@ -9,11 +9,10 @@
     "web3": "^1.8.1"
   },
   "devDependencies": {
-    "nodemon": "^2.0.15"
+    "nodemon": "^2.0.20"
   },
   "scripts": {
-    "start" : "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js"
   }
-  
 }
