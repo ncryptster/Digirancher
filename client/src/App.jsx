@@ -13,19 +13,19 @@ function App() {
       if (window.ethereum) {
         // Request account access if needed
         await window.ethereum.enable();
-
+  
         // Get the user's Ethereum address
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const address = accounts[0];
-
+  
         // Send the address to the server to get a nonce
         const nonceResponse = await axios.get('http://localhost:3000/login');
         const nonce = nonceResponse.data.nonce;
-
+  
         // Sign the nonce
         const web3 = new Web3(window.ethereum);
         const sig = await web3.eth.personal.sign(nonce, address);
-
+  
         // Send the signed message to the server
         const response = await axios.post('http://localhost:3000/login', {
           address,
@@ -40,6 +40,7 @@ function App() {
       console.error(error);
     }
   }
+  
 
   async function handleGetProtectedMessage() {
     try {
