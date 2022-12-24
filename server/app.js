@@ -53,46 +53,96 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-// Route to generate a nonce for one-click login
-app.get('/login', (req, res) => {
-  const nonce = uuid.v4();
-  res.send({ nonce });
-});
-
-// Route to handle one-click login
-app.post('/login', async (req, res) => {
-  try {
-    // Get user's Ethereum address from the signed message
-    const { address, sig } = req.body;
-    const recoveredAddress = await web3.eth.personal.ecRecover(nonce, sig);
-
-    // Check that the recovered address matches the address provided
-    if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
-      return res.status(401).send({ auth: false, message: 'Invalid signature.' });
+// GET /api/users?publicAddress=<publicAddress>
+// Retrieves the nonce associated with the given public address
+app.get('/api/users', (req, res) => {
+  const { publicAddress } = req.query;
+  User.findOne({ publicAddress }, 'nonce', (err, user) => {
+    if (err) {
+      return res.status(500).send(err);
     }
-
-    // Find or create the user in the database
-    let user = await User.findOne({ address });
     if (!user) {
-      user = new User({ address });
-      await user.save();
+      return res.status(404).send('No user found with that public address');
+    }
+    res.send(user);
+  });
+});
+
+// POST /api/authentication
+// Performs message-signing based authentication
+app.post('/api/authentication', (req, res) => {
+  const { publicAddress, signature } = req.body;
+
+  User.findOne({ publicAddress }, 'nonce', (err, user) => {
+    if (err) {
+      return res.status(500).send(err);
+    }
+    if (!user) {
+      return res.status(401).send('No user found with that public address');
     }
 
-    // Create a JWT token for the user
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: 86400 }); // expires in 24 hours
+    // Use the web3 library to verify the signature
+    const isValid = web3.eth.personal.ecRecover(user.nonce, signature) === publicAddress;
+    if (isValid) {
+      // If the signature is valid, generate a JWT and send it back to the client
+      const token = jwt.sign(payload, secret, { expiresIn: expiration }, (err, token) => {
+        if (err) {
+          return res.status(500).send(err);
+        }
+        res.send({ token });
+      });
+      const secret = process.env.JWT_SECRET;
+      const expiration = '7d'; // JWT will expire after 7 days
+      const payload = { publicAddress };
+      jwt.sign(payload, secret, { expiresIn: expiration }, (err, token) => {
+        if (err) {
+          return res.status(500).send(err);
+        }
+        res.send({ token });
+      });
+    } else {
+      res.status(401).send('Invalid signature');
+    }
+  });
+});
 
-    // Return the token to the client
-    res.send({ auth: true, token });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ auth: false, message: 'An error occurred while processing the request.' });
+
+// POST /users
+// Creates a new account
+app.post('/users', (req, res) => {
+  const { publicAddress } = req.body;
+  const user = new User({ publicAddress });
+  user.save((err) => {
+    if (err) {
+      return res.status(500).send(err);
+    }
+    res.send(user);
+  });
+});
+
+// Protected route
+app.get('/dashboard', verifyJWT, (req, res) => {
+  // The user's public address is stored in the JWT payload
+  const { publicAddress } = req.user;
+  res.send(`Welcome to the dashboard, ${publicAddress}!`);
+});
+
+// Middleware function to verify JWT
+function verifyJWT(req, res, next) {
+  const token = req.headers['x-access-token'];
+  if (!token) {
+    return res.status(401).send('No token provided');
   }
-});
+  const secret = process.env.JWT_SECRET;
+  jwt.verify(token, secret, (err, decoded) => {
+    if (err) {
+      return res.status(401).send('Invalid token');
+    }
+    req.user = decoded;
+    next();
+  });
+}
 
-// Protected route for authenticated users
-app.get('/dashboard', verifyToken, (req, res) => {
-  res.send({ message: 'You are authenticated and can access the dashboard.' });
-});
 
 // Start the server
 const port = process.env.PORT || 3000;
@@ -102,6 +152,20 @@ app.listen(port, () => {
 
 // Define the User schema
 const UserSchema = new mongoose.Schema({
-  address: String
+  publicAddress: {
+    type: String,
+    required: true,
+    unique: true,
+    validate: {
+      validator: function(v) {
+        return /^0x[a-fA-F0-9]{40}$/.test(v);
+      },
+      message: '{VALUE} is not a valid Ethereum address'
+    }
+  },
+  nonce: {
+    type: String,
+    default: () => uuid.v4()
+  }
 });
 const User = mongoose.model('User', UserSchema);
